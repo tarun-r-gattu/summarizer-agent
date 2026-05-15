@@ -3,9 +3,12 @@ import html
 import os
 import re
 from utils.folder_reader import get_files_from_folder
-from utils.folder_summarizer import summarize_folder_overall, explain_file
+# from utils.folder_summarizer import summarize_folder_overall, explain_file
 from utils.parser import read_pdf, read_docx
-from utils.summarizer import summarize_content
+# from utils.summarizer import summarize_content
+from agents.orchestrator.orchestrator import Orchestrator
+
+orchestrator = Orchestrator()
 
 # Page config
 st.set_page_config(
@@ -61,56 +64,56 @@ def search_files(files, pattern):
         return [f for f in files if lowercase in get_file_name(f).lower()]
 
 
-def summarize_selected_files(files):
-    combined_texts = []
-    failed_files = []
+# def summarize_selected_files(files):
+#     combined_texts = []
+#     failed_files = []
 
-    for uploaded_file in files:
-        try:
-            uploaded_file.seek(0)
-            if uploaded_file.type == "application/pdf" or uploaded_file.name.lower().endswith(".pdf"):
-                text = read_pdf(uploaded_file)
-            elif uploaded_file.type in [
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                "application/msword"
-            ] or uploaded_file.name.lower().endswith(".docx"):
-                text = read_docx(uploaded_file)
-            else:
-                raise Exception("Unsupported file type")
+#     for uploaded_file in files:
+#         try:
+#             uploaded_file.seek(0)
+#             if uploaded_file.type == "application/pdf" or uploaded_file.name.lower().endswith(".pdf"):
+#                 text = read_pdf(uploaded_file)
+#             elif uploaded_file.type in [
+#                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+#                 "application/msword"
+#             ] or uploaded_file.name.lower().endswith(".docx"):
+#                 text = read_docx(uploaded_file)
+#             else:
+#                 raise Exception("Unsupported file type")
 
-            if text:
-                combined_texts.append(f"File: {uploaded_file.name}\n{text}")
-        except Exception as e:
-            failed_files.append(f"{uploaded_file.name}: {str(e)}")
+#             if text:
+#                 combined_texts.append(f"File: {uploaded_file.name}\n{text}")
+#         except Exception as e:
+#             failed_files.append(f"{uploaded_file.name}: {str(e)}")
 
-    if not combined_texts:
-        raise Exception("No readable files were found in the selected files.")
+#     if not combined_texts:
+#         raise Exception("No readable files were found in the selected files.")
 
-    combined_document = "\n\n".join(combined_texts)
-    summary = summarize_content(combined_document)
+#     combined_document = "\n\n".join(combined_texts)
+#     summary = summarize_content(combined_document)
 
-    if failed_files:
-        summary += "\n\nSome files could not be read:\n" + "\n".join(failed_files)
+#     if failed_files:
+#         summary += "\n\nSome files could not be read:\n" + "\n".join(failed_files)
 
-    return summary
+#     return summary
 
 
-def explain_selected_file(file_obj):
-    if hasattr(file_obj, "name"):
-        file_obj.seek(0)
-        if file_obj.type == "application/pdf" or file_obj.name.lower().endswith(".pdf"):
-            text = read_pdf(file_obj)
-        elif file_obj.type in [
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/msword"
-        ] or file_obj.name.lower().endswith(".docx"):
-            text = read_docx(file_obj)
-        else:
-            raise Exception("Unsupported file type")
-        from utils.summarizer import summarize_text
-        return summarize_text(text, mode="explain")
+# def explain_selected_file(file_obj):
+#     if hasattr(file_obj, "name"):
+#         file_obj.seek(0)
+#         if file_obj.type == "application/pdf" or file_obj.name.lower().endswith(".pdf"):
+#             text = read_pdf(file_obj)
+#         elif file_obj.type in [
+#             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+#             "application/msword"
+#         ] or file_obj.name.lower().endswith(".docx"):
+#             text = read_docx(file_obj)
+#         else:
+#             raise Exception("Unsupported file type")
+#         from utils.summarizer import summarize_text
+#         return summarize_text(text, mode="explain")
 
-    raise Exception("Cannot explain unsupported object type")
+#     raise Exception("Cannot explain unsupported object type")
 
 
 st.subheader("Summarize Documents in a Folder")
@@ -174,11 +177,12 @@ with left_col:
             source_label = "selected files"
 
         try:
-            with st.spinner("🔍 Summarizing the folder contents..."):
-                if st.session_state.folder_source == "path":
-                    st.session_state.folder_summary = summarize_folder_overall(st.session_state.folder_path)
-                else:
-                    st.session_state.folder_summary = summarize_selected_files(st.session_state.folder_files)
+            with st.spinner("🔍 Summarizing the folder contents..."):         
+                
+                st.session_state.folder_summary = orchestrator.summarize_folder(
+                    st.session_state.folder_files
+                )
+               
                 st.session_state.summary_generated = True
                 st.session_state.file_explanations = {}
                 st.success(f"Folder summary generated successfully from {source_label}.")
@@ -236,23 +240,49 @@ if st.session_state.search_results:
         cols = st.columns([4, 1])
         cols[0].markdown(f"**{file_name}**")
         explain_key = f"explain_{idx}_{file_name}"
+        # if cols[1].button("Explain", key=explain_key):
+        #     try:
+        #         # if st.session_state.folder_source == "path":
+        #         #     st.session_state.file_explanations[file_obj] = explain_file(file_obj)
+        #         # else:
+        #         #     st.session_state.file_explanations[file_name] = explain_selected_file(file_obj)
+                
+        #         result = orchestrator.explain_file(file_obj)
+
+        #         if st.session_state.folder_source == "path":
+        #             st.session_state.file_explanations[file_obj] = result
+        #         else:
+        #             st.session_state.file_explanations[file_name] = result
+
+        #     except Exception as e:
+        #         st.error(f"Error generating explanation: {str(e)}")
+
+        
         if cols[1].button("Explain", key=explain_key):
             try:
-                if st.session_state.folder_source == "path":
-                    st.session_state.file_explanations[file_obj] = explain_file(file_obj)
-                else:
-                    st.session_state.file_explanations[file_name] = explain_selected_file(file_obj)
+                result = orchestrator.explain_file(file_obj)
+                key = get_file_name(file_obj)
+                st.session_state.file_explanations[key] = result
             except Exception as e:
                 st.error(f"Error generating explanation: {str(e)}")
 
-        if st.session_state.folder_source == "path":
-            expl_key = file_obj
-        else:
-            expl_key = file_name
+
+        # if st.session_state.folder_source == "path":
+        #     expl_key = file_obj
+        # else:
+        #     expl_key = file_name
+
+        # if expl_key in st.session_state.file_explanations:
+        #     with st.expander(f"Deeper Explanation - {file_name}", expanded=expand_all):
+        #         st.write(st.session_state.file_explanations[expl_key])
+
+        
+        expl_key = get_file_name(file_obj)
 
         if expl_key in st.session_state.file_explanations:
             with st.expander(f"Deeper Explanation - {file_name}", expanded=expand_all):
                 st.write(st.session_state.file_explanations[expl_key])
+
 
 if not st.session_state.folder_files:
     st.info("Enter a folder path or select files from a folder to enable search and summarization.")
